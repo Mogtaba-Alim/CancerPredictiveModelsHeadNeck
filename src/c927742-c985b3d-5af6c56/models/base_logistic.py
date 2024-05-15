@@ -1,26 +1,27 @@
 import numpy as np
 import pandas as pd
 
-from lifelines import CoxPHFitter
-from lifelines.utils.sklearn_adapter import sklearn_adapter
-
 from sklearn.base import BaseEstimator
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.linear_model import LogisticRegressionCV
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import (confusion_matrix, roc_auc_score,
                              average_precision_score, roc_curve,
                              precision_recall_curve, auc)
-
-from lifelines import KaplanMeierFitter
-from lifelines.utils import concordance_index
+from sksurv.linear_model import CoxPHSurvivalAnalysis
+from sksurv.util import Surv
 from joblib import Parallel, delayed
 from typing import Tuple, Callable, Dict, Optional, Union, List
 
 np.random.seed(42)
+
+
+def check_for_numeric_dtypes_or_raise(df: pd.DataFrame):
+    non_numeric_cols = [col for col, dtype in df.dtypes.items() if dtype.name == "category" or dtype.kind not in "biuf"]
+    if non_numeric_cols:
+        raise ValueError(f"The following columns must be numeric: {non_numeric_cols}")
 
 
 class SurvivalModel:
@@ -44,23 +45,16 @@ class SurvivalModel:
         self.transformer = ColumnTransformer([('scale', StandardScaler(),
                                                make_column_selector(dtype_include=np.floating))],
                                              remainder="passthrough")
-        CoxRegression = sklearn_adapter(CoxPHFitter,
-                                        event_col="death",
-                                        predict_method="predict_partial_hazard")
-        cox = CoxRegression(step_size=0.5)
-        param_grid = {"sklearncoxphfitter__penalizer": 10.0 ** np.arange(-2, 3)}
+        cox = CoxPHSurvivalAnalysis()
+        param_grid = {"coxphsurvivalanalysis__alpha": 10.0 ** np.arange(-2, 3)}
         if self.max_features_to_select > 0:
             select = SelectMRMRe(target_col="death")
-            # can't put CoxRegression in the pipeline since sklearn
-            # transformers cannot return data frames
             pipe = make_pipeline(select, cox)
             param_grid["selectmrmre__n_features"] = np.arange(2, self.max_features_to_select + 1)
         else:
             pipe = make_pipeline(cox)
 
-        # XXX lifelines sklearn adapter does not support parallelization
-        # for now, need to find a better workaround
-        self.model = GridSearchCV(pipe, param_grid, n_jobs=1, error_score='raise')
+        self.model = GridSearchCV(pipe, param_grid, n_jobs=self.n_jobs, error_score='raise')
 
     def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> "SurvivalModel":
         """Train the model.
@@ -84,22 +78,28 @@ class SurvivalModel:
         SurvivalBaseline
             The trained model.
         """
-        death = X["death"]
+        death = X["death"].astype(bool)
+        time = y
+        y_structured = Surv.from_arrays(death, time)
+
         columns = X.columns.drop("death")
+        if isinstance(X, pd.Series):
+            X = X.to_frame()
         X_transformed = self.transformer.fit_transform(X.drop("death", axis=1))
         X_transformed = pd.DataFrame(X_transformed, index=y.index, columns=columns)
-        X_transformed["death"] = death
-        self.model.fit(X_transformed, y)
+        X_transformed["death"] = death.astype(float)  # Ensure death is numeric
+
+        # Ensure all columns are numeric
+        check_for_numeric_dtypes_or_raise(X_transformed)
+
+        self.model.fit(X_transformed, y_structured)
         return self
 
     def predict(self, X: pd.DataFrame, times: Union[np.ndarray, List[float], None] = None):
         """Generate predictions for new data.
 
         This method outputs the predicted partial hazard values for each row
-        in `X`. The partial hazard is computed as
-        :math: `\exp(X - \text{mean}(X_{\text{train}}\beta))` and corresponds
-        to `type="risk"`in R's `coxph`. Additionally, it computes
-        the predicted survival function for each subject in X.
+        in `X`. Additionally, it computes the predicted survival function for each subject in X.
 
         Parameters
         ----------
@@ -119,22 +119,18 @@ class SurvivalModel:
             # predict risk every month up to 2 years
             times = np.linspace(1, 2, 23)
 
-        death = X["death"]
+        death = X["death"].astype(bool)
         columns = X.columns.drop("death")
         X_transformed = self.transformer.transform(X.drop("death", axis=1))
         X_transformed = pd.DataFrame(X_transformed, columns=columns)
-        X_transformed["death"] = death
+        X_transformed["death"] = death.astype(float)  # Ensure death is numeric
 
-        # We need to change the predict method of the lifelines model
-        # while still running the whole pipeline.
-        # This is a somewhat ugly hack, there might be a better way to do it.
-        setattr(self.model.best_estimator_["sklearncoxphfitter"],
-                "_predict_method", "predict_survival_function")
-        # GridSearchCV.predict does not support keyword arguments
-        pred_surv = self.model.best_estimator_.predict(X_transformed, times=times).T
-        setattr(self.model.best_estimator_["sklearncoxphfitter"],
-                "_predict_method", "predict_partial_hazard")
+        # Ensure all columns are numeric
+        check_for_numeric_dtypes_or_raise(X_transformed)
+
         pred_risk = self.model.predict(X_transformed)
+        pred_surv = self.model.predict_proba(X_transformed)
+
         return pred_risk, pred_surv
 
 
@@ -289,7 +285,8 @@ class SimpleBaseline:
             if target not in columns:
                 columns.append(target)
 
-        data_train, data_test = data[data["RADCURE-challenge"] == "training"], data[data["RADCURE-challenge"] == "training"]
+        data_train, data_test = data[data["RADCURE-challenge"] == "training"], data[
+            data["RADCURE-challenge"] == "training"]
         train_columns = columns.copy()
 
         if self.fuzzy_feature:
@@ -370,7 +367,6 @@ class SimpleBaseline:
             X_train_low, X_train_high, X_test_fuzzy = X_train_low.drop(["death"], axis=1), X_train_high.drop(["death"],
                                                                                                              axis=1), X_test_fuzzy.drop(
                 ["death"], axis=1)
-            # X_train_low, X_train_high, X_test_fuzzy = X_train_low.drop(["death", 'original_shape_MeshVolume'], axis=1), X_train_high.drop(["death", 'original_shape_MeshVolume'], axis=1), X_test_fuzzy.drop(["death", 'original_shape_MeshVolume'], axis=1)
             y_train_low = self.data_train_fuzzy.loc[self.data_train_fuzzy.index.isin(X_train_low.index)][
                 "target_binary"]
             y_train_high = self.data_train_fuzzy.loc[self.data_train_fuzzy.index.isin(X_train_high.index)][
@@ -388,14 +384,10 @@ class SimpleBaseline:
                 ["target_binary", "fuzzy_binary", "survival_time"], axis=1)
             X_train_high = self.data_train_fuzzy.loc[self.data_train_fuzzy.index.isin(X_train_high.index)].drop(
                 ["target_binary", "fuzzy_binary", "survival_time"], axis=1)
-            # X_train_low = self.data_train_fuzzy.loc[self.data_train_fuzzy.index.isin(X_train_low.index)].drop(["target_binary", "fuzzy_binary", "survival_time", 'original_shape_MeshVolume'], axis=1)
-            # X_train_high = self.data_train_fuzzy.loc[self.data_train_fuzzy.index.isin(X_train_high.index)].drop(["target_binary", "fuzzy_binary", "survival_time", 'original_shape_MeshVolume'], axis=1)
             y_train_low = self.data_train_fuzzy.loc[self.data_train_fuzzy.index.isin(X_train_low.index)][
                 "survival_time"]
             y_train_high = self.data_train_fuzzy.loc[self.data_train_fuzzy.index.isin(X_train_high.index)][
                 "survival_time"]
-
-            # X_test_fuzzy = X_test_fuzzy.drop(['original_shape_MeshVolume'], axis=1)
 
             low_model = self.low_survival_model
             high_model = self.high_survival_model
