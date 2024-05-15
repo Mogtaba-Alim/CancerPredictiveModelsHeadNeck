@@ -43,7 +43,7 @@ class SurvivalModel:
         self.max_features_to_select = max_features_to_select
         self.n_jobs = n_jobs
         self.transformer = ColumnTransformer([('scale', StandardScaler(),
-                                               make_column_selector(dtype_include=np.floating))],
+                                               make_column_selector(dtype_include=np.number))],
                                              remainder="passthrough")
         cox = CoxPHSurvivalAnalysis()
         param_grid = {"coxphsurvivalanalysis__alpha": 10.0 ** np.arange(-2, 3)}
@@ -78,7 +78,7 @@ class SurvivalModel:
         SurvivalBaseline
             The trained model.
         """
-        death = X["death"].astype(bool)
+        death = X["death"]
         time = y
         y_structured = Surv.from_arrays(death, time)
 
@@ -117,22 +117,39 @@ class SurvivalModel:
         """
         if times is None:
             # predict risk every month up to 2 years
-            times = np.linspace(1, 2, 23)
+            times = np.linspace(1, 24, 24)
 
-        death = X["death"].astype(bool)
+        death = X["death"].tolist()
+        if X.isna().sum().sum() > 0:
+            print("NaNs found before transformation in predict method")
+            print(X.isna().sum())
+            raise ValueError("Input X contains NaN before transformation")
+
         columns = X.columns.drop("death")
         X_transformed = self.transformer.transform(X.drop("death", axis=1))
         X_transformed = pd.DataFrame(X_transformed, columns=columns)
-        X_transformed["death"] = death.astype(float)  # Ensure death is numeric
+        X_transformed["death"] = death  # Ensure death is numeric
+
+
+        if X_transformed.isna().sum().sum() > 0:
+            print("NaNs found after transformation in predict method")
+            print(X_transformed.isna().sum())
+            raise ValueError("Input X contains NaN after transformation")
 
         # Ensure all columns are numeric
         check_for_numeric_dtypes_or_raise(X_transformed)
 
-        pred_risk = self.model.predict(X_transformed)
-        pred_surv = self.model.predict_proba(X_transformed)
+        best_model = self.model.best_estimator_
+        pred_risk = best_model.predict(X_transformed)
+        survival_functions = best_model.predict_survival_function(X_transformed)
+
+        # Get the maximum valid time from the survival functions
+        max_time = min(fn.x.max() for fn in survival_functions)
+        valid_times = np.array([t for t in times if t <= max_time])
+
+        pred_surv = np.array([[fn(t) for t in valid_times] for fn in survival_functions])
 
         return pred_risk, pred_surv
-
 
 class BinaryModel:
     """Baseline model for binary classification task.
@@ -154,7 +171,7 @@ class BinaryModel:
         self.n_jobs = n_jobs
 
         transformer = ColumnTransformer([('scale', StandardScaler(),
-                                          make_column_selector(dtype_include=np.floating))],
+                                          make_column_selector(dtype_include=np.number))],
                                         remainder="passthrough")
 
         logistic = LogisticRegressionCV(class_weight="balanced",
@@ -296,8 +313,6 @@ class SimpleBaseline:
         data_test = data_test[columns]
         data_train = data_train[train_columns]
 
-        # Check data types of all columns:
-        print(data_train.columns)
 
         return data_train, data_test
 
@@ -392,17 +407,27 @@ class SimpleBaseline:
             low_model = self.low_survival_model
             high_model = self.high_survival_model
 
+            # Define common time points for prediction
+            common_times = np.linspace(0, 14, 14)  # Adjust time points as necessary
+
             # Fit and predict low/small tumour volume model
             low_model.fit(X_train_low, y_train_low)
-            low_y_pred_event, low_y_pred_time = low_model.predict(X_test_fuzzy)
+            low_y_pred_event, low_y_pred_time = low_model.predict(X_test_fuzzy, times=common_times)
             low_y_pred_event = low_y_pred_event * low_model_prob
-            low_y_pred_time = low_y_pred_time * np.tile(low_model_prob.reshape(low_model_prob.shape[0], 1), 23)
+            low_y_pred_time = low_y_pred_time * np.tile(low_model_prob.reshape(low_model_prob.shape[0], 1),
+                                                        (1, low_y_pred_time.shape[1]))
 
             # Fit and predict high/large tumour volume model
             high_model.fit(X_train_high, y_train_high)
-            high_y_pred_event, high_y_pred_time = high_model.predict(X_test_fuzzy)
+            high_y_pred_event, high_y_pred_time = high_model.predict(X_test_fuzzy, times=common_times)
             high_y_pred_event = high_y_pred_event * high_model_prob
-            high_y_pred_time = high_y_pred_time * np.tile(high_model_prob.reshape(high_model_prob.shape[0], 1), 23)
+            high_y_pred_time = high_y_pred_time * np.tile(high_model_prob.reshape(high_model_prob.shape[0], 1),
+                                                          (1, high_y_pred_time.shape[1]))
+
+            # Check and adjust shape mismatch
+            min_time_points = min(low_y_pred_time.shape[1], high_y_pred_time.shape[1])
+            low_y_pred_time = low_y_pred_time[:, :min_time_points]
+            high_y_pred_time = high_y_pred_time[:, :min_time_points]
 
             pred = (low_y_pred_event + high_y_pred_event), (low_y_pred_time + high_y_pred_time)
             return (low_y_pred_event + high_y_pred_event), (low_y_pred_time + high_y_pred_time)
