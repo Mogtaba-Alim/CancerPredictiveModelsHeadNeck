@@ -19,8 +19,6 @@ if __name__ == '__main__':
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    print(df_outcomes.columns)
-
     df_radiomic.rename(columns={'patient_ID': 'ID'}, inplace=True)
     df_outcomes.rename(columns={'patient_id': 'ID'}, inplace=True)
 
@@ -164,8 +162,6 @@ if __name__ == '__main__':
                                  dtype=float)
 
     features = pd.concat([df_outcomes.set_index('ID'), df_radiomic.set_index('ID')], axis=1, join='inner')
-
-    print(features.columns)
 
     baselines = {
         "fuzzyVol_clin": SimpleBaseline(features,
