@@ -29,8 +29,8 @@ def split_zeros(group, training_ratio, test_ratio):
 
 if __name__ == '__main__':
 
-    df_radiomic = pd.read_csv('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/RADCURE_complete_radiomics_features.csv')
-    df_outcomes = pd.read_csv('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/RADCURE-DA-CLINICAL-2.csv')
+    df_radiomic = pd.read_csv('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/RADCURE/RADCURE_complete_radiomics_features.csv')
+    df_outcomes = pd.read_csv('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/RADCURE/RADCURE-DA-CLINICAL-2.csv')
     output_path = '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/CancerPredictiveModelsHeadNeck/Output/NewRadcure'
 
     if not os.path.exists('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/CancerPredictiveModelsHeadNeck/Output'):
