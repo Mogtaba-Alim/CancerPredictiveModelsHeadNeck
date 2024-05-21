@@ -288,6 +288,9 @@ class SimpleBaseline:
             The processed training and test datasets.
         """
 
+
+
+
         if not colnames:
             columns = [c for c in data.columns if c not in ["Study ID", "split"]]
         elif isinstance(colnames, list):
@@ -303,7 +306,7 @@ class SimpleBaseline:
                 columns.append(target)
 
         data_train, data_test = data[data["RADCURE-challenge"] == "training"], data[
-            data["RADCURE-challenge"] == "training"]
+            data["RADCURE-challenge"] == "test"]
         train_columns = columns.copy()
 
         if self.fuzzy_feature:
@@ -312,6 +315,15 @@ class SimpleBaseline:
 
         data_test = data_test[columns]
         data_train = data_train[train_columns]
+
+        nan_dict = dict(data.isna().sum())
+        for key in nan_dict:
+            if nan_dict[key] != 0:
+                print(key + ": " + str(nan_dict[key]))
+        if data.isna().sum().sum() > 0:
+            print("NaNs found in the data")
+            print(dict(data.isna().sum()))
+            raise ValueError("Input data contains NaN")
 
 
         return data_train, data_test
@@ -322,7 +334,7 @@ class SimpleBaseline:
 
         """
         median = data['original_shape_MeshVolume'].median()
-        subset = data[data.original_shape_MeshVolume >= median]
+        data = data.copy()
         data.loc[data.original_shape_MeshVolume >= median, 'fuzzy_binary'] = 1
         data.loc[data.original_shape_MeshVolume < median, 'fuzzy_binary'] = 0
 

@@ -102,8 +102,6 @@ if __name__ == '__main__':
     # Keep only the specified columns
     df_outcomes = df_outcomes[columns_to_keep]
 
-    df_outcomes['RADCURE-challenge'] = df_outcomes['RADCURE-challenge'].map({'0': 'test'})
-
     clinical_features = [
         "Age",
         "Sex_Male",
@@ -114,8 +112,8 @@ if __name__ == '__main__':
         "HPV Combined_1.0",
         "Dose",
         "Chemotherapy",
-        'ECOG_0.0', 'ECOG_1.0', 'ECOG_2.0',
-        'ECOG_3.0',
+        'ECOG_0', 'ECOG_1', 'ECOG_2',
+        'ECOG_3',
         'Disease Site_hypopharynx',
         'Disease Site_larynx',
         'Disease Site_lip & oral cavity',
@@ -163,6 +161,8 @@ if __name__ == '__main__':
 
     features = pd.concat([df_outcomes.set_index('ID'), df_radiomic.set_index('ID')], axis=1, join='inner')
 
+    features['RADCURE-challenge'] = features['RADCURE-challenge'].replace({'0': 'test'})
+    features = features.drop(columns=["series_description", "negative_control"])
     baselines = {
         "fuzzyVol_clin": SimpleBaseline(features,
                                         fuzzy_feature=['original_shape_MeshVolume'],
@@ -185,8 +185,8 @@ if __name__ == '__main__':
     }
 
     # Predict and evaluate on test
-    validation_ids = features.index[features["RADCURE-challenge"] == "training"]
-    validation_data = features[features["RADCURE-challenge"] == "training"]
+    validation_ids = features.index[features["RADCURE-challenge"] == "test"]
+    validation_data = features[features["RADCURE-challenge"] == "test"]
     for name, baseline in baselines.items():
         pred = baseline.get_test_predictions()
         survival_time = pred.pop("survival")
