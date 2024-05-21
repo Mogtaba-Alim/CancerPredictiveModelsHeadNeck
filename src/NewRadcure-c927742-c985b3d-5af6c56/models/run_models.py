@@ -2,10 +2,30 @@ import os
 
 import numpy as np
 import pandas as pd
+from collections import Counter
 
 from base_logistic import SimpleBaseline
 
 np.random.seed(42)
+
+
+def split_zeros(group, training_ratio, test_ratio):
+    zeros = group[group['RADCURE-challenge'] == '0']
+    n_zeros = zeros.shape[0]
+    n_training = int(n_zeros * training_ratio)
+    n_test = n_zeros - n_training
+
+    # Shuffle the indices to randomly assign 'training' and 'test'
+    shuffled_indices = np.random.permutation(zeros.index)
+    training_indices = shuffled_indices[:n_training]
+    test_indices = shuffled_indices[n_training:]
+
+    # Assign 'training' and 'test'
+    group.loc[training_indices, 'RADCURE-challenge'] = 'training'
+    group.loc[test_indices, 'RADCURE-challenge'] = 'test'
+
+    return group
+
 
 if __name__ == '__main__':
 
@@ -102,6 +122,17 @@ if __name__ == '__main__':
     # Keep only the specified columns
     df_outcomes = df_outcomes[columns_to_keep]
 
+    # Calculate the ratio of 'training' to 'test'
+    training_count = df_outcomes[df_outcomes['RADCURE-challenge'] == 'training'].shape[0]
+    test_count = df_outcomes[df_outcomes['RADCURE-challenge'] == 'test'].shape[0]
+    total_count = training_count + test_count
+
+    # Calculate the ratio
+    training_ratio = training_count / total_count
+    test_ratio = test_count / total_count
+
+    df = df_outcomes.groupby('Disease Site').apply(split_zeros, training_ratio, test_ratio, include_groups=False).reset_index(drop=True)
+
     clinical_features = [
         "Age",
         "Sex_Male",
@@ -161,7 +192,6 @@ if __name__ == '__main__':
 
     features = pd.concat([df_outcomes.set_index('ID'), df_radiomic.set_index('ID')], axis=1, join='inner')
 
-    features['RADCURE-challenge'] = features['RADCURE-challenge'].replace({'0': 'test'})
     features = features.drop(columns=["series_description", "negative_control"])
     baselines = {
         "fuzzyVol_clin": SimpleBaseline(features,
