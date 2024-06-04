@@ -31,7 +31,7 @@ if __name__ == '__main__':
 
     df_radiomic = pd.read_csv('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/RADCURE/RADCURE_complete_radiomics_features.csv')
     df_outcomes = pd.read_csv('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/RADCURE/RADCURE-DA-CLINICAL-2.csv')
-    output_path = '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/CancerPredictiveModelsHeadNeck/Output/NewRadcure'
+    output_path = '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/CancerPredictiveModelsHeadNeck/Output/Radcure/NewRadcure'
 
     if not os.path.exists('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/CancerPredictiveModelsHeadNeck/Output'):
         os.makedirs('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/CancerPredictiveModelsHeadNeck/Output')
@@ -80,21 +80,6 @@ if __name__ == '__main__':
     # Convert 'Disease Site' values to lower case
     df_outcomes['Disease Site'] = df_outcomes['Disease Site'].str.lower()
 
-    # Define cancer-related causes of death
-    cancer_related_causes = [
-        'Index Ca-On Tx', 'Index Ca-Sx complication', 'Index Cancer', 'Index Cancer-carotid blowout',
-        'Other Cancer', 'Other Cancer (AML)', 'Other Cancer (breast)', 'Other Cancer (Colon)',
-        'Other Cancer (esop)', 'Other Cancer (Esoph)', 'Other Cancer (HPV+ Larynx)',
-        'Other Cancer (Lung sarcoma)', 'Other Cancer (Lung)', 'Other Cancer (Myeloma)',
-        'Other Cancer (p16- Larynx)', 'Other Cancer (p16-ve Oral Tongue)'
-    ]
-
-    # Rename the 'Cause of Death' column to 'cancer_death'
-    df_outcomes.rename(columns={'Cause of Death': 'cancer_death'}, inplace=True)
-
-    # Create the 'cancer_death' column with binary values
-    df_outcomes['cancer_death'] = df_outcomes['cancer_death'].apply(lambda x: 1 if x in cancer_related_causes else 0)
-
     # Rename the 'ECOG PS' column to 'ECOG'
     df_outcomes.rename(columns={'ECOG PS': 'ECOG'}, inplace=True)
 
@@ -116,7 +101,7 @@ if __name__ == '__main__':
     columns_to_keep = [
         'ID', 'target_binary', 'survival_time', 'death', 'Age',
         'Sex', 'T Stage', 'N Stage', 'Stage', 'Dose', 'Chemotherapy',
-        'HPV Combined', 'Disease Site', 'cancer_death', 'ECOG', 'RADCURE-challenge'
+        'HPV Combined', 'Disease Site', 'ECOG', 'RADCURE-challenge'
     ]
 
     # Keep only the specified columns
@@ -130,9 +115,7 @@ if __name__ == '__main__':
     # Calculate the ratio
     training_ratio = training_count / total_count
     test_ratio = test_count / total_count
-
-    df = df_outcomes.groupby('Disease Site').apply(split_zeros, training_ratio, test_ratio, include_groups=False).reset_index(drop=True)
-
+    df_outcomes = df_outcomes.groupby('Disease Site').apply(split_zeros, training_ratio, test_ratio, include_groups=False).reset_index(drop=False)
     clinical_features = [
         "Age",
         "Sex_Male",
@@ -189,6 +172,8 @@ if __name__ == '__main__':
     df_outcomes = pd.get_dummies(df_outcomes,
                                  columns=["Sex", "HPV Combined", "Disease Site", "T Stage", "N Stage", "ECOG", "Stage"],
                                  dtype=float)
+    # df_outcomes.to_csv("/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/RADCURE/df_outcomes.csv")
+    # raise ValueError
 
     features = pd.concat([df_outcomes.set_index('ID'), df_radiomic.set_index('ID')], axis=1, join='inner')
 
