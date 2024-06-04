@@ -169,6 +169,10 @@ if __name__ == '__main__':
     # 2) Diamant, A., Chatterjee, A., Vallières, M. et al. Deep learning in head & neck cancer outcome prediction. Sci Rep 9, 2764 (2019). https://doi.org/10.1038/s41598-019-39206-1
     radiomic_features = ['original_glszm_SizeZoneNonUniformity', 'original_glszm_ZoneVariance',
                          'original_glrlm_LongRunHighGrayLevelEmphasis']
+
+    allowed_ds_site_values = ['hypopharynx', 'larynx', 'lip & oral cavity', 'nasal cavity', 'nasopharynx', 'oropharynx']
+    df_outcomes = df_outcomes[df_outcomes['Disease Site'].isin(allowed_ds_site_values)]
+
     df_outcomes = pd.get_dummies(df_outcomes,
                                  columns=["Sex", "HPV Combined", "Disease Site", "T Stage", "N Stage", "ECOG", "Stage"],
                                  dtype=float)
