@@ -42,6 +42,9 @@ if __name__ == '__main__':
     df_radiomic.rename(columns={'patient_ID': 'ID'}, inplace=True)
     df_outcomes.rename(columns={'patient_id': 'ID'}, inplace=True)
 
+    # Drop the compactness radiomic feature
+    df_radiomic = df_radiomic.drop(columns=["original_shape_Compactness1"])
+
     # Convert the columns to datetime
     df_outcomes['RT Start'] = pd.to_datetime(df_outcomes['RT Start'])
     df_outcomes['Last FU'] = pd.to_datetime(df_outcomes['Last FU'])
@@ -176,6 +179,8 @@ if __name__ == '__main__':
     df_outcomes = pd.get_dummies(df_outcomes,
                                  columns=["Sex", "HPV Combined", "Disease Site", "T Stage", "N Stage", "ECOG", "Stage"],
                                  dtype=float)
+    df_outcomes = df_outcomes.drop(columns=['ECOG_', 'ECOG_4'])
+
     # df_outcomes.to_csv("/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/RADCURE/df_outcomes.csv")
     # raise ValueError
 
