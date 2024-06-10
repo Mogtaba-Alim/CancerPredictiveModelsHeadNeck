@@ -11,7 +11,7 @@ np.random.seed(42)
 
 if __name__ == '__main__':
 
-    negative_controls = ["default", "randomized_full", "randomized_roi", "randomized_non_roi", "shuffled_full", "shuffled_roi",
+    negative_controls = ["default", "randomized_roi", "randomized_non_roi", "shuffled_full", "shuffled_roi",
                       "shuffled_non_roi","randomized_sampled_full", "randomized_sampled_roi", "randomized_sampled_non_roi"]
 
     for nc in negative_controls:
@@ -40,6 +40,9 @@ if __name__ == '__main__':
         df_radiomic.rename(columns={'patient_ID': 'ID'}, inplace=True)
         df_outcomes.rename(columns={'id': 'ID'}, inplace=True)
 
+        # Drop the compactness radiomic feature
+        radcure_radiomics = radcure_radiomics.drop(columns=["original_shape_Compactness1"])
+
         # Rename to Disease Site
         df_outcomes.rename(columns={'index_tumour_location': 'Disease Site'}, inplace=True)
 
@@ -49,6 +52,9 @@ if __name__ == '__main__':
 
         # Rename the ECOG column
         df_outcomes.rename(columns={'performance_status_ecog': 'ECOG'}, inplace=True)
+
+        # Fill empty values in the ECOG column with 0
+        df_outcomes['ECOG'] = df_outcomes['ECOG'].fillna(0)
 
         # Rename the HPV status column and binarize it
         df_outcomes.rename(columns={'overall_hpv_p16_status': 'HPV Combined'}, inplace=True)
@@ -67,7 +73,7 @@ if __name__ == '__main__':
             letter = col.split()[0]
             df_outcomes[col] = df_outcomes[col].apply(lambda x: f"{letter}{x}")
 
-        # Rename the Stage column and capitalize the letters
+        # Rename the Stage column
         df_outcomes.rename(columns={'ajcc_stage': 'Stage'}, inplace=True)
         df_outcomes['Stage'] = df_outcomes['Stage'].str.upper()
 
@@ -158,6 +164,17 @@ if __name__ == '__main__':
         df_outcomes = pd.get_dummies(df_outcomes,
                                      columns=["Sex", "HPV Combined", "Disease Site", "T Stage", "N Stage", "ECOG", "Stage"],
                                      dtype=float)
+
+        for i in range(4):
+            df_outcomes.rename(columns={'ECOG_' + str(i) + ".0": 'ECOG_' + str(i)}, inplace=True)
+
+        df_outcomes['Stage_0'] = 0.0
+        df_outcomes['Stage_IV'] = 0.0
+        df_outcomes['Disease Site_hypopharynx'] = 0.0
+        df_outcomes['Disease Site_lip & oral cavity'] = 0.0
+        df_outcomes['Disease Site_nasal cavity'] = 0.0
+        df_outcomes['Disease Site_nasopharynx'] = 0.0
+
         # df_outcomes.to_csv("/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HEAD-NECK-RADIOMICS-HN1/df_outcomes.csv")
         # raise ValueError
 
@@ -166,7 +183,7 @@ if __name__ == '__main__':
 
         features = pd.concat([radcure_final, df_outcomes_final])
 
-        features = features.drop(columns=["series_description", "negative_control"])
+        features = features.drop(columns=["series_description", "negative_control", "Unnamed: 0", "level_1"])
         baselines = {
             "fuzzyVol_clin": SimpleBaseline(features,
                                             fuzzy_feature=['original_shape_MeshVolume'],
