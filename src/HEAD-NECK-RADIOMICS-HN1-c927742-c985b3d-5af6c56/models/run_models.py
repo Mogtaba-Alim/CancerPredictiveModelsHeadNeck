@@ -8,10 +8,13 @@ from base_logistic import SimpleBaseline
 
 np.random.seed(42)
 
+def check_file_exists(file_path):
+    return os.path.isfile(file_path)
+
 
 if __name__ == '__main__':
 
-    negative_controls = ["default", "randomized_roi", "randomized_non_roi", "shuffled_full", "shuffled_roi",
+    negative_controls = ["default", "randomized_full", "randomized_roi", "randomized_non_roi", "shuffled_full", "shuffled_roi",
                       "shuffled_non_roi","randomized_sampled_full", "randomized_sampled_roi", "randomized_sampled_non_roi"]
 
     for nc in negative_controls:
@@ -20,6 +23,9 @@ if __name__ == '__main__':
             df_radiomic = pd.read_csv('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HEAD-NECK-RADIOMICS-HN1/radiomicfeatures_HEAD-NECK-RADIOMICS-HN1.csv')
         else:
             df_radiomic = pd.read_csv('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HEAD-NECK-RADIOMICS-HN1/radiomicfeatures_' + nc + '_HEAD-NECK-RADIOMICS-HN1.csv')
+
+        if not check_file_exists(df_radiomic):
+            pass
 
         df_outcomes = pd.read_csv(
             '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HEAD-NECK-RADIOMICS-HN1/HEAD-NECK-RADIOMICS-HN1-Clinical-data.csv')
