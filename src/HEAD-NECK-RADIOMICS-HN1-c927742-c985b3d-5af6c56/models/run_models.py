@@ -20,12 +20,15 @@ if __name__ == '__main__':
     for nc in negative_controls:
 
         if nc == "default":
-            df_radiomic = pd.read_csv('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HEAD-NECK-RADIOMICS-HN1/radiomicfeatures_HEAD-NECK-RADIOMICS-HN1.csv')
+            df_radiomic_path = '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HEAD-NECK-RADIOMICS-HN1/radiomicfeatures_HEAD-NECK-RADIOMICS-HN1.csv'
         else:
-            df_radiomic = pd.read_csv('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HEAD-NECK-RADIOMICS-HN1/radiomicfeatures_' + nc + '_HEAD-NECK-RADIOMICS-HN1.csv')
+            df_radiomic_path = '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HEAD-NECK-RADIOMICS-HN1/radiomicfeatures_' + nc + '_HEAD-NECK-RADIOMICS-HN1.csv'
 
-        if not check_file_exists(df_radiomic):
-            pass
+        if not check_file_exists(df_radiomic_path):
+            continue
+        else:
+            df_radiomic = pd.read_csv(df_radiomic_path)
+
 
         df_outcomes = pd.read_csv(
             '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HEAD-NECK-RADIOMICS-HN1/HEAD-NECK-RADIOMICS-HN1-Clinical-data.csv')
