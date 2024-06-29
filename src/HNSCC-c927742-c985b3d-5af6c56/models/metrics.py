@@ -1,5 +1,6 @@
 """Metrics used in evaluation of binary and survival tasks."""
 from typing import Tuple, Callable, Dict, Optional, Union, List
+import os
 
 import numpy as np
 import pandas as pd
@@ -232,12 +233,18 @@ def evaluate_survival(event_true: np.ndarray,
                                              event_observed=event_true,
                                              time_bins=time_bins)
 
-    return {
-        "concordance_index": ci,
-        "concordance_index_pval": ci_pval,
-        "integrated_brier_score": brier,
-        "integrated_brier_score_pval": brier_pval
-    }
+    if time_pred == None:
+        return {
+            "concordance_index": ci,
+            "concordance_index_pval": ci_pval
+        }
+    else:
+        return {
+            "concordance_index": ci,
+            "concordance_index_pval": ci_pval,
+            "integrated_brier_score": brier,
+            "integrated_brier_score_pval": brier_pval
+        }
 
 
 def plot_roc_curve(true: Union[np.ndarray, pd.Series],
@@ -316,3 +323,68 @@ def plot_pr_curve(true: Union[np.ndarray, pd.Series],
     ax.set_ylabel("Precision")
     ax.set_title("Precision-recall curve")
     return ax
+
+def check_file_exists(file_path):
+    return os.path.isfile(file_path)
+
+if __name__ == "__main__":
+    df_outcomes = pd.read_csv(
+        '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HNSCC/Radiomics_Outcome_Prediction_in_OPC_ASRM_corrected.csv')
+
+    # Create an empty DataFrame with the specified columns
+    df_columns = ['negative_control', 'model_type', 'concordance_index', 'concordance_index_pval']
+    output_results = pd.DataFrame(columns=df_columns)
+
+    negative_controls = ["default", "randomized_full", "randomized_roi", "randomized_non_roi", "shuffled_full",
+                         "shuffled_roi",
+                         "shuffled_non_roi", "randomized_sampled_full", "randomized_sampled_roi",
+                         "randomized_sampled_non_roi"]
+
+    for nc in negative_controls:
+        model_type = ["fuzzyVol_clin+rad_currated_train.csv", "fuzzyVol_clin_train.csv",
+                      "fuzzyVol_rad_currated_train.csv"]
+        for md in model_type:
+            df_outcomes = pd.read_csv(
+                '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HNSCC/Radiomics_Outcome_Prediction_in_OPC_ASRM_corrected.csv')
+
+            df_results_path = "/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/CancerPredictiveModelsHeadNeck/Output/HNSCC/" + nc + "/" + md
+            if not check_file_exists(df_results_path):
+                continue
+
+            model_type = df_results_path.split("/")[-1].split(".")[0]
+
+            df_results = pd.read_csv(df_results_path)
+            df_outcomes.rename(columns={'TCIA Radiomics dummy ID of To_Submit_Final': 'ID'}, inplace=True)
+
+            # Rename the Survival time column
+            df_outcomes.rename(columns={'Overall survival_duration of Merged updated ASRM V2': 'survival_time'},
+                               inplace=True)
+            df_outcomes['survival_time'] = df_outcomes['survival_time'] / 365
+
+            # Rename the Death column and map dead to 1 and alive to 0
+            df_outcomes.rename(columns={'Vital status': 'death'}, inplace=True)
+            df_outcomes['death'] = df_outcomes['death'].map({'Alive': 0, 'Dead': 1})
+
+            final_values = pd.concat([df_results.set_index('ID'), df_outcomes.set_index('ID')], axis=1, join='inner')
+
+            if final_values.isna().sum().sum() > 0:
+                print(final_values.isna().sum())
+                raise ValueError("Input final_values contains NaN")
+
+            # Extracting the columns into numpy arrays
+            death = final_values['death'].values
+            survival_time = final_values['survival_time'].values
+            survival_event = final_values['survival_event'].values
+
+            output = evaluate_survival(death, survival_time, survival_event)
+            output["negative_control"] = nc
+            output["model_type"] = md
+
+            # Append the outputs as rows to the DataFrame
+            output_results = output_results._append(output, ignore_index=True)
+
+    # Export the DataFrame to a CSV file
+    output_results.to_csv('/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/CancerPredictiveModelsHeadNeck/Output/HNSCC/HNSCC_metrics_output.csv', index=False)
+
+
+
