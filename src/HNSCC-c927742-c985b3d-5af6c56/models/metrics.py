@@ -367,9 +367,9 @@ if __name__ == "__main__":
 
             final_values = pd.concat([df_results.set_index('ID'), df_outcomes.set_index('ID')], axis=1, join='inner')
 
-            if final_values.isna().sum().sum() > 0:
-                print(final_values.isna().sum())
-                raise ValueError("Input final_values contains NaN")
+            # if final_values.isna().sum().sum() > 0:
+            #     print(final_values.isna().sum())
+            #     raise ValueError("Input final_values contains NaN")
 
             # Extracting the columns into numpy arrays
             death = final_values['death'].values

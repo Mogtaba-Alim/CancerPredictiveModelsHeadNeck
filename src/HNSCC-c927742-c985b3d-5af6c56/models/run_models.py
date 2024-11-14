@@ -23,9 +23,9 @@ if __name__ == '__main__':
     for nc in negative_controls:
 
         if nc == "default":
-            df_radiomic_path = '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HNSCC/radiomicfeatures_original_HNSCC.csv'
+            df_radiomic_path = '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HNSCC/filtered_radiomics_with_fmcib_patients/radiomicfeatures_original_HNSCC.csv'
         else:
-            df_radiomic_path = '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HNSCC/radiomicfeatures_' + nc + '_HNSCC.csv'
+            df_radiomic_path = '/Users/maximus/Desktop/FALL2023/BCB430/code/headNeckModels/ClinicalData/HNSCC/filtered_radiomics_with_fmcib_patients/radiomicfeatures_' + nc + '_HNSCC.csv'
 
         if not check_file_exists(df_radiomic_path):
             continue
